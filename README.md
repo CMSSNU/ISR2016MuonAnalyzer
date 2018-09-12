@@ -61,7 +61,7 @@ C. Plotting
 1. execute below lines
 
 root <<EOF
-.L scripts/plot.cc
-SaveAll("/data2/CAT_SKTreeOutput/JobOutPut/$USER/LQanalyzer/data/output/CAT/ISR2016MuonAnalyzer/periodBtoH/")
-.q
+.L scripts/plot.cc;
+SaveAll("/data2/CAT_SKTreeOutput/JobOutPut/$USER/LQanalyzer/data/output/CAT/ISR2016MuonAnalyzer/periodBtoH/");
+.q;
 EOF
