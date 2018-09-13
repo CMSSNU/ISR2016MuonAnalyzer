@@ -4,6 +4,8 @@
 A. SETUP
 ###########################
 
+@@ It works only at tamsa1.snu.ac.kr(147.47.242.42). 
+
 1. Get CatAnalyzer. If you already have CatAnalyzer, skip this.
 
    git clone https://github.com/jalmond/LQanalyzer CatAnalyzer  
