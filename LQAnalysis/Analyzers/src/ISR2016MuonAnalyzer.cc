@@ -106,6 +106,9 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
       double gendipt = gendy.Pt();
       double gendimass = gendy.M();  
       
+      cout<<"before filling gen2D"<<endl;
+      ((TProfile2D*)maphist2D["genprofileM"])->Fill(gendimass,gendipt,gendimass,weight);
+      ((TProfile2D*)maphist2D["genprofilePt"])->Fill(gendimass,gendipt,gendipt,weight);
       FillHist("gendipt",gendipt,weight,0.,100.,100);
       FillHist("gendimass",gendimass,weight,0.,400.,200);
       if(genptlep1>genptlep2){
@@ -210,6 +213,9 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   if(mcfromtau&&k_sample_name.Contains("DY")) prefix="tau_";
   
   //fill hists
+  cout<<"before filling 2D"<<endl;
+  ((TProfile2D*)maphist2D["profileM"])->Fill(dimass,dipt,dimass,weight);
+  ((TProfile2D*)maphist2D["profilePt"])->Fill(dimass,dipt,dipt,weight);
   FillHist(prefix+"dipt",dipt,weight,0.,100.,100);
   FillHist(prefix+"dimass",dimass,weight,0.,400.,200);
   FillHist(prefix+"met",met,weight,0.,100.,50);
@@ -301,6 +307,12 @@ void ISR2016MuonAnalyzer::MakeHistograms(){
   /**
    *  Remove//Overide this ISR2016MuonAnalyzerCore::MakeHistograms() to make new hists for your analysis
    **/
+  if(k_sample_name.Contains("DY")){
+    maphist2D["genprofileM"]=new TProfile2D("genprofileM","genprofileM",200,0,400,200,0,400);
+    maphist2D["genprofilePt"]=new TProfile2D("genprofilePt","genprofilePt",200,0,400,200,0,400);
+  }
+  maphist2D["profileM"]=new TProfile2D("profileM","profileM",200,0,400,200,0,400);
+  maphist2D["profilePt"]=new TProfile2D("profilePt","profilePt",200,0,400,200,0,400);
 }
 
 

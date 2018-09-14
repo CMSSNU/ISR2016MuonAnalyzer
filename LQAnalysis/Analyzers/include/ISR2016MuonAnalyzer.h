@@ -2,6 +2,7 @@
 #define ISR2016MuonAnalyzer_h
 
 #include "AnalyzerCore.h"
+#include "TProfile2D.h"
 class ISR2016MuonAnalyzer : public AnalyzerCore {
 
  public:
