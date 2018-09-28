@@ -366,20 +366,20 @@ TCanvas* plot_final(TString dirname,TString suffix=""){
 //////////////////////////////////////////////////////////////
 /////////////////Save all plots/////////////////////////////////
 /////////////////////////////////////////////////////////////
-void SaveAll(TString dirname,TString format="pdf",TString option=""){
+void SaveAll(TString dirname,TString suffix="",TString option="",TString format="pdf"){
   TString histnames[]={"dimass","dipt","met","nvtx","l1pt","l2pt","l1eta","l2eta"};
   for(int i=0;i<sizeof(histnames)/sizeof(TString);i++){
-    TCanvas *c=plot_compare_stack(dirname,histnames[i]);
-    c->SaveAs(histnames[i]+"."+format);
+    TCanvas *c=plot_compare_stack(dirname,histnames[i]+suffix);
+    c->SaveAs(histnames[i]+suffix+"."+format);
   }
   if(option.Contains("MORE")||option.Contains("more")){
     for(int im=0;im<5;im++){
       for(int i=0;i<sizeof(histnames)/sizeof(TString);i++){
-	TCanvas *c=plot_compare_stack(dirname,Form("%s_m%d",histnames[i].Data(),im));
-	c->SaveAs(Form("%s_m%d.%s",histnames[i].Data(),im,format.Data()));
+	TCanvas *c=plot_compare_stack(dirname,Form("%s_m%d%s",histnames[i].Data(),im,suffix.Data()));
+	c->SaveAs(Form("%s_m%d%s.%s",histnames[i].Data(),im,suffix.Data(),format.Data()));
       }
     }
   }
-  TCanvas* c=plot_final(dirname);
-  c->SaveAs("graph."+format);
+  TCanvas* c=plot_final(dirname,suffix);
+  c->SaveAs("graph"+suffix+"."+format);
 }
