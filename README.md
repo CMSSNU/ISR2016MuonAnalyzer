@@ -16,7 +16,7 @@ A. SETUP
 
 2. Get ISR2016MuonAnalyzer
 
-   git pull --no-edit https://github.com/CMSSNU/ISR2016MuonAnalyzer CatAnalyzer_13TeV_v8-0-7.41  
+   git pull --no-edit https://github.com/CMSSNU/ISR2016MuonAnalyzer master  
 
 You may nead to set user.name. It is OK with any string.  
     git config user.name ANYNAME
