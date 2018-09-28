@@ -99,34 +99,13 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
     
     //Fill generator level hists, if we find both of muon and anti-muon
     if(genl1!=TLorentzVector(0,0,0,0)&&genl2!=TLorentzVector(0,0,0,0)){  
-      double genptlep1 = genl1.Pt();
-      double genptlep2 = genl2.Pt();
-      double genetalep1 = genl1.Eta();
-      double genetalep2 = genl2.Eta();
-      double gendipt = gendy.Pt();
       double gendimass = gendy.M();  
-      
-      FillHist("gendipt",gendipt,weight,0.,100.,100);
-      FillHist("gendimass",gendimass,weight,0.,400.,200);
-      if(genptlep1>genptlep2){
-	FillHist("genl1pt",genptlep1,weight,0.,100.,50);
-	FillHist("genl2pt",genptlep2,weight,0.,100.,50);
-	FillHist("genl1eta",genetalep1,weight,-4.,4.,80);
-	FillHist("genl2eta",genetalep2,weight,-4.,4.,80);
-      }else{
-	FillHist("genl1pt",genptlep2,weight,0.,100.,50);
-	FillHist("genl2pt",genptlep1,weight,0.,100.,50);
-	FillHist("genl1eta",genetalep2,weight,-4.,4.,80);
-	FillHist("genl2eta",genetalep1,weight,-4.,4.,80);
-      }    
-      const float massrange[]={40,60,60,80,80,100,100,200,200,350};
-      for(int im=0;im<5;im++){
-	if(gendimass>=massrange[2*im]&&gendimass<massrange[2*im+1]){
-	  FillHist(Form("gendipt_m%d",im),gendipt,weight,0.,100.,100);
-	  FillHist(Form("gendimass_m%d",im),gendimass,weight,0.,400.,200);
-	  break;
-	}
-      }
+      double gendipt = gendy.Pt();
+      double genl1pt = genl1.Pt();
+      double genl2pt = genl2.Pt();
+      double genl1eta = genl1.Eta();
+      double genl2eta = genl2.Eta();
+      FillHists("gen","",gendimass,gendipt,-1,-1,genl1pt,genl2pt,genl1eta,genl2eta,weight);
     }
   }
   
@@ -136,117 +115,132 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   vector<TString> trignames;
   trignames.push_back(single_trig1);
   trignames.push_back(single_trig2);
-  if(!isData) weight*=WeightByTrigger(trignames,TargetLumi); // change MC luminocity from 1pb^-1(default) to data luminocity
 
-  FillCutFlow("NoCut", weight);
+  vector<TString> trignames_double;
+  trignames_double.push_back("HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v");
+  trignames_double.push_back("HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_v");
+  trignames_double.push_back("HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v");
+  trignames_double.push_back("HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v");
+  double weight_single=weight,weight_double=weight;
+  if(!isData){
+    weight_single*=WeightByTrigger(trignames,TargetLumi); // change MC luminocity from 1pb^-1(default) to data luminocity
+    weight_double*=WeightByTrigger(trignames_double,TargetLumi);
+  }
+
+  FillCutFlow("NoCut", weight_single);
 
   if(!PassMETFilter()) return;     /// Initial event cuts : 
   if(!eventbase->GetEvent().HasGoodPrimaryVertex()) return; //// Make cut on event wrt vertex
-  FillCutFlow("BasicEventCut", weight);    
+  FillCutFlow("BasicEventCut", weight_single);    
 
   std::vector<snu::KMuon> muons =GetMuons("MUON_POG_TIGHT",true); //get muon collection
   std::vector<snu::KElectron> electrons =  GetElectrons(false,false, "ELECTRON_NOCUT"); //get electron collection
 
   //select dimuon events
   if(muons.size()!=2) return;
-  FillCutFlow("dimuonCut",weight);
+  //if(electrons.size()>0) return;
+  FillCutFlow("dimuonCut",weight_single);
 
   //check whether this event pass single muon trigger
-  if(!PassTriggerOR(trignames)) return;
+  bool passtrigger_single=true;
+  if(!PassTriggerOR(trignames)) passtrigger_single=false;
   //check whether one of dimuon fire trigger
-  if(!(muons[0].TriggerMatched(single_trig1)||muons[1].TriggerMatched(single_trig1)||muons[0].TriggerMatched(single_trig2)||muons[1].TriggerMatched(single_trig2))) return;
-  FillCutFlow("triggerCut",weight);  
+  if(!(muons[0].TriggerMatched(single_trig1)||muons[1].TriggerMatched(single_trig1)||muons[0].TriggerMatched(single_trig2)||muons[1].TriggerMatched(single_trig2))) passtrigger_single=false;
+  //FillCutFlow("triggerCut",weight_single);  
   
+  bool passtrigger_double=PassTriggerOR(trignames_double);
+  //check whether dimuon fire trigger
+  bool matchtrigger_double=false;
+  for(int i=0;i<4;i++){
+    if(muons[0].TriggerMatched(trignames_double[i])&&muons[1].TriggerMatched(trignames_double[i])) matchtrigger_double=true;
+  }
+  passtrigger_double&=matchtrigger_double;
+
   //apply scale factors
   if(!isData){
-    weight*=mcdata_correction->CatPileupWeight(eventbase->GetEvent(),0);  //apply pileup reweight
-    weight*=mcdata_correction->TriggerScaleFactor(electrons, muons, trignames[0],0);  //apply trigger scale factor
-    weight*=mcdata_correction->MuonTrackingEffScaleFactor(muons); //apply muon tracking efficiency scale factor
-    weight*=mcdata_correction->MuonScaleFactor("MUON_POG_TIGHT", muons, 0);  //apply muon ID scale factor
-    weight*=mcdata_correction->MuonISOScaleFactor("MUON_POG_TIGHT", muons, 0);  //apply muon isolation scale factor
+    weight_single*=mcdata_correction->CatPileupWeight(eventbase->GetEvent(),0);  //apply pileup reweight
+    weight_single*=mcdata_correction->TriggerScaleFactor(electrons, muons, trignames[0],0);  //apply trigger scale factor
+    weight_single*=mcdata_correction->MuonTrackingEffScaleFactor(muons); //apply muon tracking efficiency scale factor
+    weight_single*=mcdata_correction->MuonScaleFactor("MUON_POG_TIGHT", muons, 0);  //apply muon ID scale factor
+    weight_single*=mcdata_correction->MuonISOScaleFactor("MUON_POG_TIGHT", muons, 0);  //apply muon isolation scale factor
+
+    weight_double*=mcdata_correction->CatPileupWeight(eventbase->GetEvent(),0);  //apply pileup reweight
+    //weight_double*=mcdata_correction->TriggerScaleFactor(electrons, muons, trignames_double[0],0);  //no scale factor for double muon trigger
+    weight_double*=mcdata_correction->MuonTrackingEffScaleFactor(muons); //apply muon tracking efficiency scale factor
+    weight_double*=mcdata_correction->MuonScaleFactor("MUON_POG_TIGHT", muons, 0);  //apply muon ID scale factor
+    weight_double*=mcdata_correction->MuonISOScaleFactor("MUON_POG_TIGHT", muons, 0);  //apply muon isolation scale factor
   }
-  FillCutFlow("AfterScaleFactor",weight);
+  FillCutFlow("AfterScaleFactor",weight_single);
 
   //select opposite sign events
   if(muons.at(0).Charge()==muons.at(1).Charge()) return;
-  FillCutFlow("osCut",weight);
+  FillCutFlow("osCut",weight_single);
   
   //relative isolation cut
   if(muons.at(0).RelIso04() > 0.15) return;
   if(muons.at(1).RelIso04() > 0.15) return;
-  FillCutFlow("RisoCut",weight);
+  FillCutFlow("RisoCut",weight_single);
 
   
   CorrectMuonMomentum(muons);   //apply rochester correction
   CorrectedMETRochester(muons);  //update MET after rochester correction
-
-  double met=eventbase->GetEvent().MET();
-  double ptlep1 = muons[0].Pt();
-  double ptlep2 = muons[1].Pt();
-  double etalep1 = muons[0].Eta();
-  double etalep2 = muons[1].Eta();
-  double dipt = (muons[0]+muons[1]).Pt();
+  
   double dimass = (muons[0]+muons[1]).M();  
+  double dipt = (muons[0]+muons[1]).Pt();
+  double met=eventbase->GetEvent().MET();
+  int nvtx=eventbase->GetEvent().nVertices();
+  double l1pt = muons[0].Pt();
+  double l2pt = muons[1].Pt();
+  double l1eta = muons[0].Eta();
+  double l2eta = muons[1].Eta();
 
   //dilepton mass cut
   if(dimass<40||dimass>350) return;
-  FillCutFlow("MassCut",weight);
-
-  //lepton pT&eta cut
-  if(!(((ptlep1>27)||(ptlep2>27))&&(ptlep1>15)&&(ptlep2>15)&&(fabs(etalep1)<2.4)&&(fabs(etalep2)<2.4))) return;
-  FillCutFlow("PtEtaCut",weight);
-
-  //dilepton pT cut
-  if(dipt>100) return;
-  FillCutFlow("DileptonPtCut",weight);
+  FillCutFlow("MassCut",weight_single);
 
   //missing E_T cut
   //if(met>35) return;
-  //FillCutFlow("METCut",weight);
+  //FillCutFlow("METCut",weight_single);
 
   //mark 'DY -> tau tau' events
   bool mcfromtau = (muons[0].MCFromTau()||muons[1].MCFromTau());
   TString prefix="";
   if(mcfromtau&&k_sample_name.Contains("DY")) prefix="tau_";
-  
-  //fill hists
-  FillHist(prefix+"dipt",dipt,weight,0.,100.,100);
-  FillHist(prefix+"dimass",dimass,weight,0.,400.,200);
-  FillHist(prefix+"met",met,weight,0.,100.,50);
-  FillHist(prefix+"nvtx",eventbase->GetEvent().nVertices(),weight,0.,50.,50);
-  if(ptlep1>ptlep2){
-    FillHist(prefix+"l1pt",ptlep1,weight,0.,100.,50);
-    FillHist(prefix+"l2pt",ptlep2,weight,0.,100.,50);
-    FillHist(prefix+"l1eta",etalep1,weight,-4.,4.,80);
-    FillHist(prefix+"l2eta",etalep2,weight,-4.,4.,80);
-  }else{
-    FillHist(prefix+"l1pt",ptlep2,weight,0.,100.,50);
-    FillHist(prefix+"l2pt",ptlep1,weight,0.,100.,50);
-    FillHist(prefix+"l1eta",etalep2,weight,-4.,4.,80);
-    FillHist(prefix+"l2eta",etalep1,weight,-4.,4.,80);
-  }    
-  const float massrange[]={40,60,60,80,80,100,100,200,200,350};
-  for(int im=0;im<5;im++){
-    if(dimass>=massrange[2*im]&&dimass<massrange[2*im+1]){
-      FillHist(Form("%sdipt_m%d",prefix.Data(),im),dipt,weight,0.,100.,100);
-      FillHist(Form("%sdimass_m%d",prefix.Data(),im),dimass,weight,0.,400.,200);
-      FillHist(Form("%smet_m%d",prefix.Data(),im),met,weight,0.,100.,50);
-      FillHist(Form("%snvtx_m%d",prefix.Data(),im),eventbase->GetEvent().nVertices(),weight,0.,50.,50);
-      if(ptlep1>ptlep2){
-	FillHist(Form("%sl1pt_m%d",prefix.Data(),im),ptlep1,weight,0.,100.,50);
-	FillHist(Form("%sl2pt_m%d",prefix.Data(),im),ptlep2,weight,0.,100.,50);
-	FillHist(Form("%sl1eta_m%d",prefix.Data(),im),etalep1,weight,-4.,4.,80);
-	FillHist(Form("%sl2eta_m%d",prefix.Data(),im),etalep2,weight,-4.,4.,80);
-      }else{
-	FillHist(Form("%sl1pt_m%d",prefix.Data(),im),ptlep2,weight,0.,100.,50);
-	FillHist(Form("%sl2pt_m%d",prefix.Data(),im),ptlep1,weight,0.,100.,50);
-	FillHist(Form("%sl1eta_m%d",prefix.Data(),im),etalep2,weight,-4.,4.,80);
-	FillHist(Form("%sl2eta_m%d",prefix.Data(),im),etalep1,weight,-4.,4.,80);
-      }    
-      break;
-    }
+
+  if(l1pt<l2pt){
+    double temppt=l2pt;
+    l2pt=l1pt;
+    l1pt=temppt;
+    double tempeta=l2eta;
+    l2eta=l1eta;
+    l1eta=tempeta;
   }
 
+  //fill hists
+  if(passtrigger_single){
+    //lepton pT&eta cut
+    if(l1pt>27&&l2pt>15&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
+      FillHists(prefix,"_SingleMuon",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight_single);
+    }
+  }
+  if(passtrigger_double){
+    if(l1pt>20&&l2pt>10&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
+      FillCutFlow("PtEtaCut",weight_single);
+      FillHists(prefix,"",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight_double);
+    }
+    if(l1pt>20&&l2pt>15&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
+      FillHists(prefix,"_pt2015",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight_double);
+    }
+    if(l1pt>20&&l2pt>20&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
+      FillHists(prefix,"_pt2020",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight_double);
+    }
+    if(l1pt>20&&l2pt>10&&(fabs(l1eta)<1.5)&&(fabs(l2eta)<1.5)){
+      FillHists(prefix,"_eta1p5",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight_double);
+    }
+    if(l1pt>20&&l2pt>20&&(fabs(l1eta)<1.5)&&(fabs(l2eta)<1.5)){
+      FillHists(prefix,"_pt2020_eta1p5",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight_double);
+    }
+  }
   return;
 }// End of execute event loop
   
@@ -317,5 +311,56 @@ void ISR2016MuonAnalyzer::ClearOutputVectors() throw(LQError) {
   out_electrons.clear();
 }
 
+void ISR2016MuonAnalyzer::FillProfile2D(TString histname, double x, double y, double z, double w, double xmin, double xmax, int nbinsx, double ymin, double ymax, int nbinsy , TString label, TString labely){
+  m_logger << DEBUG << "FillProfile2D : " << histname << LQLogger::endmsg;
+  if(GetHist2D(histname)) ((TProfile2D*)GetHist2D(histname))->Fill(x,y,z,w);
+  else{
+    if (nbinsx < 0) {
+      m_logger << ERROR << histname << " was NOT found. Nbins was not set also... please configure histogram maker correctly" << LQLogger::endmsg;
+      exit(0);
+    }
+    m_logger << DEBUG << "Making the profile" << LQLogger::endmsg;
+    maphist2D[histname]=new TProfile2D(histname,histname,nbinsx,xmin,xmax,nbinsy,ymin,ymax);
+    ((TProfile2D*)maphist2D[histname])->Sumw2();
+    if(GetHist2D(histname)) GetHist2D(histname)->GetXaxis()->SetTitle(label);
+    if(GetHist2D(histname)) GetHist2D(histname)->GetYaxis()->SetTitle(labely);
+    if(GetHist2D(histname)) ((TProfile2D*)GetHist2D(histname))->Fill(x,y,z,w);
+  }
+}
 
-
+void ISR2016MuonAnalyzer::FillHists(TString prefix,TString suffix,double dimass,double dipt,double met,int nvtx,double l1pt,double l2pt,double l1eta,double l2eta,double ww){
+  FillProfile2D(prefix+"profileM"+suffix,dimass,dipt,dimass,ww,0.,400.,200,0.,400.,200);
+  FillProfile2D(prefix+"profilePt"+suffix,dimass,dipt,dipt,ww,0.,400.,200,0.,400.,200);
+  if(l1pt<l2pt){
+    double temppt=l2pt;
+    l2pt=l1pt;
+    l1pt=temppt;
+    double tempeta=l2eta;
+    l2eta=l1eta;
+    l1eta=tempeta;
+  }
+  if(dipt<100){;
+    FillHist(prefix+"dipt"+suffix,dipt,ww,0.,100.,100);
+    FillHist(prefix+"dimass"+suffix,dimass,ww,0.,400.,200);
+    FillHist(prefix+"met"+suffix,met,ww,0.,100.,50);
+    FillHist(prefix+"nvtx"+suffix,nvtx,ww,0.,50.,50);
+    FillHist(prefix+"l1pt"+suffix,l1pt,ww,0.,100.,50);
+    FillHist(prefix+"l2pt"+suffix,l2pt,ww,0.,100.,50);
+    FillHist(prefix+"l1eta"+suffix,l1eta,ww,-4.,4.,80);
+    FillHist(prefix+"l2eta"+suffix,l2eta,ww,-4.,4.,80);
+    const float massrange[]={40,60,60,80,80,100,100,200,200,350};
+    for(int im=0;im<5;im++){
+      if(dimass>=massrange[2*im]&&dimass<massrange[2*im+1]){
+	FillHist(Form("%sdipt_m%d%s",prefix.Data(),im,suffix.Data()),dipt,ww,0.,100.,100);
+	FillHist(Form("%sdimass_m%d%s",prefix.Data(),im,suffix.Data()),dimass,ww,0.,400.,200);
+	FillHist(Form("%smet_m%d%s",prefix.Data(),im,suffix.Data()),met,ww,0.,100.,50);
+	FillHist(Form("%snvtx_m%d%s",prefix.Data(),im,suffix.Data()),nvtx,ww,0.,50.,50);
+	FillHist(Form("%sl1pt_m%d%s",prefix.Data(),im,suffix.Data()),l1pt,ww,0.,100.,50);
+	FillHist(Form("%sl2pt_m%d%s",prefix.Data(),im,suffix.Data()),l2pt,ww,0.,100.,50);
+	FillHist(Form("%sl1eta_m%d%s",prefix.Data(),im,suffix.Data()),l1eta,ww,-4.,4.,80);
+	FillHist(Form("%sl2eta_m%d%s",prefix.Data(),im,suffix.Data()),l2eta,ww,-4.,4.,80);
+	break;
+      }
+    }
+  }
+}

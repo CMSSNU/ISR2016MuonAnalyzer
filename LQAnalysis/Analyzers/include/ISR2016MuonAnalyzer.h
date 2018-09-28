@@ -2,6 +2,7 @@
 #define ISR2016MuonAnalyzer_h
 
 #include "AnalyzerCore.h"
+#include "TProfile2D.h"
 class ISR2016MuonAnalyzer : public AnalyzerCore {
 
  public:
@@ -18,6 +19,8 @@ class ISR2016MuonAnalyzer : public AnalyzerCore {
   
   void InitialiseAnalysis() throw( LQError );
   void MakeHistograms();
+  void FillProfile2D(TString histname,double x,double y,double z,double w,double xmin,double xmax,int nbinsx,double ymin,double ymax,int nbinsy,TString lable="",TString labely="");
+  void FillHists(TString prefix,TString suffix,double dimass,double dipt,double met,int nvtx,double l1pt,double l2pt,double l1eta,double l2eta,double ww);
  private:
   
   //
