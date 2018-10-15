@@ -361,18 +361,21 @@ TCanvas* plot_compare_stack(TString dirname, TString histname, TString histdirec
     }else if(strstr(hist->GetTitle(),"WW")){
       hist->SetTitle("WW, WZ, ZZ");
       diboson=hist;
+      cout<<"diboson="<<hist<<hist->GetTitle()<<endl;
     }else if(strstr(hist->GetTitle(),"WZ")){
       for(int j=0;j<hists.size();j++){
-	if(strstr(hist->GetTitle(),"WW")){
+	if(strstr(hists.at(j)->GetTitle(),"WW")){
 	  hists.at(j)->Add(hist);
+	  cout<<hists.at(j)<<"+="<<hist<<hist->GetTitle()<<endl;
 	}
       }
       hists.erase(hists.begin()+i);
       i--;
     }else if(strstr(hist->GetTitle(),"ZZ")){
       for(int j=0;j<hists.size();j++){
-	if(strstr(hist->GetTitle(),"WW")){
+	if(strstr(hists.at(j)->GetTitle(),"WW")){
 	  hists.at(j)->Add(hist);
+	  cout<<hists.at(j)<<"+="<<hist<<hist->GetTitle()<<endl;
 	}
       }
       hists.erase(hists.begin()+i);

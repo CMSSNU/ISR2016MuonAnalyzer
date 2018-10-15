@@ -30,6 +30,10 @@ class ISR2016MuonAnalyzer : public AnalyzerCore {
   std::vector<snu::KMuon> out_muons;
   std::vector<snu::KElectron> out_electrons;
 
+  std::vector<Double_t> etaRec,ptRec,mRec;
+  std::vector<Double_t> etaGen,ptGen,mGen;
+  Double_t weight_, weightTotal;
+  Int_t istriggered,issignal, DYtautau;
 
   ClassDef ( ISR2016MuonAnalyzer, 1);
 };

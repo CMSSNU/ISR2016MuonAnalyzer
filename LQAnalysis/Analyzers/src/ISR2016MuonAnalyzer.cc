@@ -127,13 +127,35 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
       double genl2pt = genl2.Pt();
       double genl1eta = genl1.Eta();
       double genl2eta = genl2.Eta();
+      double genl1mass = genl1.M();
+      double genl2mass = genl2.M();
+      if(genl1pt<genl2pt){
+	double temppt=genl2pt; 
+	double tempeta=genl2eta;
+	double tempmass=genl2mass;
+	genl2pt=genl1pt;
+	genl2eta=genl1eta;
+	genl2mass=genl1mass;
+	genl1pt=temppt;
+	genl1eta=tempeta;
+	genl1mass=tempmass;
+      }
       FillHists("gen","",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
-      ///////for test///////
-      if(fabs(genl1eta)<2.4&&fabs(genl2eta)<2.4){
-	FillHists("gen","_eta2p4",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
+      ///////for unfolding///////
+      if(genl1pt>20&&genl2pt>10&&fabs(genl1eta)<2.4&&fabs(genl2eta)<2.4){
+	FillHists("gen","_fiducial",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
+	issignal = 1;
+	weight_ = weight*lumiweight_double;
+	ptGen.push_back(genl1pt); // FIXME
+	ptGen.push_back(genl2pt);
+	ptGen.push_back((genl1+genl2).Pt());
+	
+	mGen.push_back(0.000511);
+	mGen.push_back(0.000511);
+	mGen.push_back((genl1+genl2).M());
 	if(gendy.M()-(genl1+genl2).M()>5){
 	  ishardFSR=true;
-	  FillHists("gen","_eta2p4_hardFSR",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
+	  FillHists("gen","_fiducial",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
 	}
       }
       FillHists("gen","_hardFSR",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
@@ -208,12 +230,15 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   
   double dimass = (muons[0]+muons[1]).M();  
   double dipt = (muons[0]+muons[1]).Pt();
+  double dieta = (muons[0]+muons[1]).Eta();
   double met=eventbase->GetEvent().MET();
   int nvtx=eventbase->GetEvent().nVertices();
   double l1pt = muons[0].Pt();
   double l2pt = muons[1].Pt();
   double l1eta = muons[0].Eta();
   double l2eta = muons[1].Eta();
+  double l1mass = muons[0].M();
+  double l2mass = muons[1].M();
 
   //dilepton mass cut
   //if(dimass<40||dimass>350) return;
@@ -226,16 +251,20 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
 
   //mark 'DY -> tau tau' events
   bool mcfromtau = (muons[0].MCFromTau()||muons[1].MCFromTau());
+  DYtautau=mcfromtau;
   TString prefix="";
   if(mcfromtau&&k_sample_name.Contains("DY")) prefix="tau_";
 
   if(l1pt<l2pt){
-    double temppt=l2pt;
-    l2pt=l1pt;
-    l1pt=temppt;
+    double temppt=l2pt; 
     double tempeta=l2eta;
+    double tempmass=l2mass;
+    l2pt=l1pt;
     l2eta=l1eta;
+    l2mass=l1mass;
+    l1pt=temppt;
     l1eta=tempeta;
+    l1mass=tempmass;
   }
 
   //fill hists
@@ -247,10 +276,26 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
     }
   }
   if(passtrigger_double){
+    istriggered=1;
+    weightTotal=weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF;
     //////////////Default/////////////////////
     if(l1pt>20&&l2pt>10&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
       FillCutFlow("PtEtaCut",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
       FillHists(prefix,"",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+      
+      ///////////for unfolding tree//////////////
+      ptRec.push_back(l1pt);
+      ptRec.push_back(l2pt);
+      ptRec.push_back(dipt);
+      
+      etaRec.push_back(l1eta);
+      etaRec.push_back(l2eta);
+      etaRec.push_back(dieta);
+      
+      mRec.push_back(l1mass);
+      mRec.push_back(l2mass);
+      mRec.push_back(dimass);
+
       //////////////systematics/////////////////
       if(!isData){
 	FillHists(prefix,"_sys_PUreweight_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight_up*IDSF*ISOSF*trackingEffSF);
@@ -269,24 +314,24 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
 	//for(int i=0;i<imax;i++) FillHists(prefix,Form("_pdfweight%d",i),dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF*pdfweight.at(i));
       }
       /////for test
-      if(ishardFSR) FillHists(prefix,"_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+      if(ishardFSR) FillHists(prefix,"_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
     }
     /////////For cut optimzation
     if(l1pt>20&&l2pt>15&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
-      FillHists(prefix,"_pt2015",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
-      if(ishardFSR) FillHists(prefix,"_pt2015_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+      FillHists(prefix,"_pt2015",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
+      if(ishardFSR) FillHists(prefix,"_pt2015_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
     }
     if(l1pt>20&&l2pt>20&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
-      FillHists(prefix,"_pt2020",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
-      if(ishardFSR) FillHists(prefix,"_pt2020_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+      FillHists(prefix,"_pt2020",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
+      if(ishardFSR) FillHists(prefix,"_pt2020_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
     }
     if(l1pt>20&&l2pt>10&&(fabs(l1eta)<1)&&(fabs(l2eta)<1)){
-      FillHists(prefix,"_eta1",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
-      if(ishardFSR) FillHists(prefix,"_eta1_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+      FillHists(prefix,"_eta1",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
+      if(ishardFSR) FillHists(prefix,"_eta1_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
     }
     if(l1pt>20&&l2pt>20&&(fabs(l1eta)<1)&&(fabs(l2eta)<1)){
-      FillHists(prefix,"_pt2020_eta1",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
-      if(ishardFSR) FillHists(prefix,"_pt2020_eta1_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+      FillHists(prefix,"_pt2020_eta1",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
+      if(ishardFSR) FillHists(prefix,"_pt2020_eta1_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
     }
   }
   return;
@@ -313,7 +358,18 @@ void ISR2016MuonAnalyzer::BeginCycle() throw( LQError ){
   //  DeclareVariable(out_electrons, "Signal_Electrons", "LQTree");
   //  DeclareVariable(out_muons, "Signal_Muons");
 
-  
+  DeclareVariable(etaRec,"etarec","tree"); 
+  DeclareVariable(ptRec,"ptrec","tree"); 
+  DeclareVariable(mRec,"mrec","tree"); 
+  DeclareVariable(istriggered,"istriggered","tree"); 
+  DeclareVariable(weight_,"weight","tree"); 
+  DeclareVariable(weightTotal,"weightTotal","tree"); 
+  DeclareVariable(ptGen,"ptgen","tree"); 
+  DeclareVariable(etaGen,"etagen","tree"); 
+  DeclareVariable(mGen,"mgen","tree"); 
+  DeclareVariable(issignal,"issignal","tree"); 
+  DeclareVariable(DYtautau,"DYtautau","tree"); 
+
   return;
   
 }
@@ -357,6 +413,21 @@ void ISR2016MuonAnalyzer::ClearOutputVectors() throw(LQError) {
   //
   out_muons.clear();
   out_electrons.clear();
+
+  issignal = 0;
+  istriggered = 0;
+  DYtautau = 0;
+  weight_ = 1.;
+  weightTotal = 1.;
+
+  etaRec.clear();
+  ptRec.clear();
+  mRec.clear();
+
+  etaGen.clear();
+  ptGen.clear();
+  mGen.clear();
+
 }
 
 void ISR2016MuonAnalyzer::FillProfile2D(TString histname, double x, double y, double z, double w, double xmin, double xmax, int nbinsx, double ymin, double ymax, int nbinsy , TString label, TString labely){
