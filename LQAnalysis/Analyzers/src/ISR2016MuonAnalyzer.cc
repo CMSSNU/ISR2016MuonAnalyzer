@@ -88,15 +88,16 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
     lumiweight_single*=WeightByTrigger(trignames_single,TargetLumi); // change MC luminocity from 1pb^-1(default) to data luminocity
     lumiweight_double*=WeightByTrigger(trignames_double,TargetLumi);
   }
+  weightGen=weight*lumiweight_double;
 
-  FillCutFlow("NoCut", weight*lumiweight_double);
+  FillCutFlow("NoCut", weightGen);
   // Get generator information for gen/reco ratio correction (only for Drell-Yan MC).
   // For this, we needs full-phase space generator level information.
   // So, You should run this with FLATCAT.
   bool ishardFSR=false;
   if(k_sample_name.Contains("DY")){  //only for Drell-Yan MC
     std::vector<snu::KTruth> truthcol =  eventbase->GetTruth();   //get truth particles
-    TLorentzVector gendy,genl1,genl2;   //gendy: Z/gamma* fourvector, genl1: muon fourvector, genl2: anti-muon fourvector
+    TLorentzVector gendy,genl1,genl2,genl1pre,genl2pre;   //gendy: Z/gamma* fourvector, genl1: muon fourvector, genl2: anti-muon fourvector, *pre: before FSR
     int truthsize=truthcol.size();
 
     //loop for collect dimuon Drell-Yan product
@@ -105,20 +106,23 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
       if(truth.GenStatus()!=1) continue;  //stable-particle-requirement
       if(truth.PdgId()==13&&truth.StatusFlag(snu::KTruth::fromhardprocess)){
 	genl1+=truth;
-	gendy+=truth;
       }else if(truth.PdgId()==-13&&truth.StatusFlag(snu::KTruth::fromhardprocess)){
 	genl2+=truth;
-	gendy+=truth;
       }else if(truth.PdgId()==22){   //collect photons from DY muons by FSR
 	int imother=truth.IndexMother();
 	if(imother>=truthsize) continue;
 	snu::KTruth mother=truthcol.at(truth.IndexMother());
-	if(abs(mother.PdgId())==13&&mother.StatusFlag(snu::KTruth::fromhardprocess)){
-	  gendy+=truth;
+	if(mother.PdgId()==13&&mother.StatusFlag(snu::KTruth::fromhardprocess)){
+	  genl1pre+=truth;
+	}else if(mother.PdgId()==-13&&mother.StatusFlag(snu::KTruth::fromhardprocess)){
+	  genl2pre+=truth;
 	}
       }
     }
-    
+    genl1pre+=genl1;
+    genl2pre+=genl2;
+    gendy=genl1pre+genl2pre;
+
     //Fill generator level hists, if we find both of muon and anti-muon
     if(genl1!=TLorentzVector(0,0,0,0)&&genl2!=TLorentzVector(0,0,0,0)){  
       double gendimass = gendy.M();  
@@ -140,31 +144,37 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
 	genl1eta=tempeta;
 	genl1mass=tempmass;
       }
-      FillHists("gen","",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
+      FillHists("gen","",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weightGen);
+      if(gendy.M()-(genl1+genl2).M()>5){
+	ishardFSR=true;
+	FillHists("gen","_hardFSR",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weightGen);
+      }
       ///////for unfolding///////
+      ptPreFSR.push_back(genl1pre.Pt());
+      ptPreFSR.push_back(genl2pre.Pt());
+      ptPreFSR.push_back(gendipt);
+      mPreFSR.push_back(genl1pre.M());
+      mPreFSR.push_back(genl2pre.M());
+      mPreFSR.push_back(gendimass);
+      ptGen.push_back(genl1pt);
+      ptGen.push_back(genl2pt);
+      ptGen.push_back((genl1+genl2).Pt());
+      mGen.push_back(0.000511);
+      mGen.push_back(0.000511);
+      mGen.push_back((genl1+genl2).M());
+      if((genl1pre.Pt()>20||genl2pre.Pt()>20)&&(genl1pre.Pt()>10&&genl2pre.Pt()>10)&&fabs(genl1pre.Eta())<2.4&&fabs(genl2pre.Eta())<2.4){
+	isfiducialPreFSR = 1;
+      }
       if(genl1pt>20&&genl2pt>10&&fabs(genl1eta)<2.4&&fabs(genl2eta)<2.4){
 	FillHists("gen","_fiducial",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
-	issignal = 1;
-	weight_ = weight*lumiweight_double;
-	ptGen.push_back(genl1pt); // FIXME
-	ptGen.push_back(genl2pt);
-	ptGen.push_back((genl1+genl2).Pt());
-	
-	mGen.push_back(0.000511);
-	mGen.push_back(0.000511);
-	mGen.push_back((genl1+genl2).M());
-	if(gendy.M()-(genl1+genl2).M()>5){
-	  ishardFSR=true;
-	  FillHists("gen","_fiducial",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
-	}
+	isfiducialGen = 1;
       }
-      FillHists("gen","_hardFSR",gendimass,gendipt,-99999,-99999,genl1pt,genl2pt,genl1eta,genl2eta,weight*lumiweight_double);
     }
   }  
 
   if(!PassMETFilter()) return;     /// Initial event cuts : 
   if(!eventbase->GetEvent().HasGoodPrimaryVertex()) return; //// Make cut on event wrt vertex
-  FillCutFlow("BasicEventCut", weight*lumiweight_double);    
+  FillCutFlow("BasicEventCut", weightGen);    
 
   std::vector<snu::KMuon> muons =GetMuons("MUON_POG_TIGHT",true); //get muon collection
   std::vector<snu::KElectron> electrons =  GetElectrons(false,false, "ELECTRON_NOCUT"); //get electron collection
@@ -172,7 +182,7 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   //select dimuon events
   if(muons.size()!=2) return;
   //if(electrons.size()>0) return;
-  FillCutFlow("dimuonCut",weight*lumiweight_double);
+  FillCutFlow("dimuonCut",weightGen);
 
   //check whether this event pass SingleMuon trigger
   bool passtrigger_single=true;
@@ -193,7 +203,6 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   double PUreweight=1,PUreweight_up=1,PUreweight_down=1;
   double IDSF=1,IDSF_up=1,IDSF_down=1;
   double ISOSF=1,ISOSF_up=1,ISOSF_down=1;
-  double trackingEffSF=1;
   double triggerSF_single=1;
   if(!isData){
     PUreweight=mcdata_correction->CatPileupWeight(eventbase->GetEvent(),0);  //pileup reweight
@@ -208,21 +217,20 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
     ISOSF_up=mcdata_correction->MuonISOScaleFactor("MUON_POG_TIGHT", muons, 1);  //muon isolation scale factor sys
     ISOSF_down=mcdata_correction->MuonISOScaleFactor("MUON_POG_TIGHT", muons, -1);  //muon isolation scale factor sys
 
-    trackingEffSF=mcdata_correction->MuonTrackingEffScaleFactor(muons); //muon tracking efficiency scale factor
-
     triggerSF_single=mcdata_correction->TriggerScaleFactor(electrons, muons, trignames_single[0],0);  //trigger scale factor for SingleMuon trigger
-    //triggerSF_double=mcdata_correction->TriggerScaleFactor(electrons, muons, trignames_double[0],0);  //no scale factor for double muon trigger
+    //triggerSF_double=mcdata_correction->TriggerScaleFactor(electrons, muons, trignames_double[0],0);  //no scale factor for double muon trigger yet
   }
-  FillCutFlow("AfterScaleFactor",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+  weightTotal=weight*lumiweight_double*PUreweight*IDSF*ISOSF;
+  FillCutFlow("AfterScaleFactor",weightTotal);
 
   //select opposite sign events
   if(muons.at(0).Charge()==muons.at(1).Charge()) return;
-  FillCutFlow("osCut",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+  FillCutFlow("osCut",weightTotal);
   
   //relative isolation cut
   if(muons.at(0).RelIso04() > 0.15) return;
   if(muons.at(1).RelIso04() > 0.15) return;
-  FillCutFlow("RisoCut",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+  FillCutFlow("RisoCut",weightTotal);
 
   
   CorrectMuonMomentum(muons);   //apply rochester correction
@@ -243,11 +251,11 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   //dilepton mass cut
   //if(dimass<40||dimass>350) return;
   if(dimass<15) return;
-  FillCutFlow("MassCut",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+  FillCutFlow("MassCut",weightTotal);
 
   //missing E_T cut
   //if(met>35) return;
-  //FillCutFlow("METCut",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
+  //FillCutFlow("METCut",weightTotal);
 
   //mark 'DY -> tau tau' events
   bool mcfromtau = (muons[0].MCFromTau()||muons[1].MCFromTau());
@@ -271,50 +279,46 @@ void ISR2016MuonAnalyzer::ExecuteEvents()throw( LQError ){
   if(passtrigger_single){
     //lepton pT&eta cut
     if(l1pt>27&&l2pt>15&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
-      FillHists(prefix,"_SingleMuon",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_single*PUreweight*IDSF*ISOSF*trackingEffSF*triggerSF_single);
-      if(ishardFSR) FillHists(prefix,"_SingleMuon_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_single*PUreweight*IDSF*ISOSF*trackingEffSF);
+      FillHists(prefix,"_SingleMuon",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_single*PUreweight*IDSF*ISOSF*triggerSF_single);
+      if(ishardFSR) FillHists(prefix,"_SingleMuon_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_single*PUreweight*IDSF*ISOSF*triggerSF_single);
     }
   }
   if(passtrigger_double){
-    istriggered=1;
-    weightTotal=weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF;
     //////////////Default/////////////////////
     if(l1pt>20&&l2pt>10&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
-      FillCutFlow("PtEtaCut",weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
-      FillHists(prefix,"",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF);
-      
-      ///////////for unfolding tree//////////////
+      FillCutFlow("PtEtaCut",weightTotal);
+      FillHists(prefix,"",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal); 
+      if(ishardFSR) FillHists(prefix,"_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
+     
+      ///////////for unfolding tree////////////// 
+      ispassRec=1;
       ptRec.push_back(l1pt);
       ptRec.push_back(l2pt);
       ptRec.push_back(dipt);
-      
       etaRec.push_back(l1eta);
       etaRec.push_back(l2eta);
       etaRec.push_back(dieta);
-      
       mRec.push_back(l1mass);
       mRec.push_back(l2mass);
       mRec.push_back(dimass);
 
       //////////////systematics/////////////////
       if(!isData){
-	FillHists(prefix,"_sys_PUreweight_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight_up*IDSF*ISOSF*trackingEffSF);
-	FillHists(prefix,"_sys_PUreweight_down",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight_down*IDSF*ISOSF*trackingEffSF);
-	FillHists(prefix,"_sys_IDSF_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF_up*ISOSF*trackingEffSF);
-	FillHists(prefix,"_sys_IDSF_down",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF_down*ISOSF*trackingEffSF);
-	FillHists(prefix,"_sys_ISOSF_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF_up*trackingEffSF);
-	FillHists(prefix,"_sys_ISOSF_down",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF_down*trackingEffSF);
+	FillHists(prefix,"_sys_PUreweight_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight_up*IDSF*ISOSF);
+	FillHists(prefix,"_sys_PUreweight_down",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight_down*IDSF*ISOSF);
+	FillHists(prefix,"_sys_IDSF_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF_up*ISOSF);
+	FillHists(prefix,"_sys_IDSF_down",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF_down*ISOSF);
+	FillHists(prefix,"_sys_ISOSF_up",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF_up);
+	FillHists(prefix,"_sys_ISOSF_down",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF_down);
 	//scale variation
 	vector<Float_t> scaleweight=eventbase->GetEvent().ScaleWeights();
 	int imax=scaleweight.size();
-	for(int i=0;i<imax;i++) FillHists(prefix,Form("_sys_scaleweight%d",i),dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF*scaleweight.at(i));
+	for(int i=0;i<imax;i++) FillHists(prefix,Form("_sys_scaleweight%d",i),dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*scaleweight.at(i));
 	//pdf sys
 	//vector<Float_t> pdfweight=eventbase->GetEvent().PdfWeights();
 	//int imax=pdfweight.size();
-	//for(int i=0;i<imax;i++) FillHists(prefix,Form("_pdfweight%d",i),dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*trackingEffSF*pdfweight.at(i));
+	//for(int i=0;i<imax;i++) FillHists(prefix,Form("_pdfweight%d",i),dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weight*lumiweight_double*PUreweight*IDSF*ISOSF*pdfweight.at(i));
       }
-      /////for test
-      if(ishardFSR) FillHists(prefix,"_hardFSR",dimass,dipt,met,nvtx,l1pt,l2pt,l1eta,l2eta,weightTotal);
     }
     /////////For cut optimzation
     if(l1pt>20&&l2pt>15&&(fabs(l1eta)<2.4)&&(fabs(l2eta)<2.4)){
@@ -358,16 +362,22 @@ void ISR2016MuonAnalyzer::BeginCycle() throw( LQError ){
   //  DeclareVariable(out_electrons, "Signal_Electrons", "LQTree");
   //  DeclareVariable(out_muons, "Signal_Muons");
 
+  DeclareVariable(ptPreFSR,"ptPreFSR","tree"); 
+  DeclareVariable(mPreFSR,"mPreFSR","tree");
+
   DeclareVariable(etaRec,"etarec","tree"); 
   DeclareVariable(ptRec,"ptrec","tree"); 
-  DeclareVariable(mRec,"mrec","tree"); 
-  DeclareVariable(istriggered,"istriggered","tree"); 
-  DeclareVariable(weight_,"weight","tree"); 
-  DeclareVariable(weightTotal,"weightTotal","tree"); 
+  DeclareVariable(mRec,"mrec","tree");
   DeclareVariable(ptGen,"ptgen","tree"); 
   DeclareVariable(etaGen,"etagen","tree"); 
   DeclareVariable(mGen,"mgen","tree"); 
-  DeclareVariable(issignal,"issignal","tree"); 
+ 
+  DeclareVariable(ispassRec,"ispassRec","tree"); 
+  DeclareVariable(isfiducialGen,"isfiducialGen","tree"); 
+  DeclareVariable(isfiducialPreFSR,"isfiducialPreFSR","tree"); 
+
+  DeclareVariable(weightGen,"weight","tree"); 
+  DeclareVariable(weightTotal,"weightTotal","tree"); 
   DeclareVariable(DYtautau,"DYtautau","tree"); 
 
   return;
@@ -414,10 +424,12 @@ void ISR2016MuonAnalyzer::ClearOutputVectors() throw(LQError) {
   out_muons.clear();
   out_electrons.clear();
 
-  issignal = 0;
-  istriggered = 0;
+  isfiducialGen = 0;
+  isfiducialPreFSR = 0;
+  ispassRec = 0;
   DYtautau = 0;
-  weight_ = 1.;
+
+  weightGen = 1.;
   weightTotal = 1.;
 
   etaRec.clear();
@@ -427,6 +439,9 @@ void ISR2016MuonAnalyzer::ClearOutputVectors() throw(LQError) {
   etaGen.clear();
   ptGen.clear();
   mGen.clear();
+
+  ptPreFSR.clear();
+  mPreFSR.clear();
 
 }
 

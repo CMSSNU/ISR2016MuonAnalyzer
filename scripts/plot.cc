@@ -234,14 +234,15 @@ TH1D* TGraphGetHistY(TGraphErrors* graph){
   return hist;
 }
 TGraphErrors* get_graph(TString dirname,void *histfunction,bool getgenlevel=0,TString suffix=""){
+  const double diptcut=400;
   TString prefix="";
   if(getgenlevel) prefix="gen";
   TProfile2D* profilePt=(TProfile2D*)(*histfunction)(dirname,prefix+"profilePt"+suffix,"Hists2D/");
   TProfile2D* profileM=(TProfile2D*)(*histfunction)(dirname,prefix+"profileM"+suffix,"Hists2D/");
   TGraphErrors* graph=new TGraphErrors;
   for(int im=0;im<sizeof(massrange)/sizeof(double)/2;im++){
-    graph->SetPoint(im,pow(TProfile2DGetMean(profileM,massrange[2*im],massrange[2*im+1],0,100),2),TProfile2DGetMean(profilePt,massrange[2*im],massrange[2*im+1],0,100));
-    graph->SetPointError(im,2*TProfile2DGetMeanError(profileM,massrange[2*im],massrange[2*im+1],0,100),TProfile2DGetMeanError(profilePt,massrange[2*im],massrange[2*im+1],0,100));
+    graph->SetPoint(im,pow(TProfile2DGetMean(profileM,massrange[2*im],massrange[2*im+1],0,diptcut),2),TProfile2DGetMean(profilePt,massrange[2*im],massrange[2*im+1],0,diptcut));
+    graph->SetPointError(im,2*TProfile2DGetMeanError(profileM,massrange[2*im],massrange[2*im+1],0,diptcut),TProfile2DGetMeanError(profilePt,massrange[2*im],massrange[2*im+1],0,diptcut));
   }
   return graph;
 }

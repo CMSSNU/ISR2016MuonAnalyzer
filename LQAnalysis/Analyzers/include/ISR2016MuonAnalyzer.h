@@ -32,8 +32,9 @@ class ISR2016MuonAnalyzer : public AnalyzerCore {
 
   std::vector<Double_t> etaRec,ptRec,mRec;
   std::vector<Double_t> etaGen,ptGen,mGen;
-  Double_t weight_, weightTotal;
-  Int_t istriggered,issignal, DYtautau;
+  std::vector<Double_t> ptPreFSR,mPreFSR;
+  Double_t weightGen, weightTotal;
+  Int_t isfiducialGen,ispassRec,isfiducialPreFSR,DYtautau;
 
   ClassDef ( ISR2016MuonAnalyzer, 1);
 };
