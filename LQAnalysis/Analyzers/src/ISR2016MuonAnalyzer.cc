@@ -364,19 +364,18 @@ void ISR2016MuonAnalyzer::BeginCycle() throw( LQError ){
 
   DeclareVariable(ptPreFSR,"ptPreFSR","tree"); 
   DeclareVariable(mPreFSR,"mPreFSR","tree");
-
-  DeclareVariable(etaRec,"etarec","tree"); 
-  DeclareVariable(ptRec,"ptrec","tree"); 
-  DeclareVariable(mRec,"mrec","tree");
-  DeclareVariable(ptGen,"ptgen","tree"); 
-  DeclareVariable(etaGen,"etagen","tree"); 
-  DeclareVariable(mGen,"mgen","tree"); 
+  DeclareVariable(etaRec,"etaRec","tree"); 
+  DeclareVariable(ptRec,"ptRec","tree"); 
+  DeclareVariable(mRec,"mRec","tree");
+  DeclareVariable(ptGen,"ptGen","tree"); 
+  DeclareVariable(etaGen,"etaGen","tree"); 
+  DeclareVariable(mGen,"mGen","tree"); 
  
   DeclareVariable(ispassRec,"ispassRec","tree"); 
   DeclareVariable(isfiducialGen,"isfiducialGen","tree"); 
   DeclareVariable(isfiducialPreFSR,"isfiducialPreFSR","tree"); 
 
-  DeclareVariable(weightGen,"weight","tree"); 
+  DeclareVariable(weightGen,"weightGen","tree"); 
   DeclareVariable(weightTotal,"weightTotal","tree"); 
   DeclareVariable(DYtautau,"DYtautau","tree"); 
 
